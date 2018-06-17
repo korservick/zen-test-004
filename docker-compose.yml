@@ -1,0 +1,8 @@
+version: '2.1'
+
+services:
+  zen-test-004:
+    image: zen test 004
+    build: .
+    ports:
+      - 3000:3000
