@@ -13,8 +13,10 @@ import (
 	wex "github.com/onuryilmaz/go-wex"
 )
 
+const period = 600 // aggregation period in sec
+
 type metric struct {
-	value    [maxPosition]float64
+	value    [period]float64
 	position int
 	time     int64
 }
@@ -23,8 +25,6 @@ type calc struct {
 	Avg     float64
 	Updated int64
 }
-
-const maxPosition = 600 // aggregation period in sec
 
 var (
 	api           wex.API
@@ -44,29 +44,38 @@ func mod(a, b int) int {
 }
 
 func accum() {
+	var (
+		counter int64
+		avg     float64
+	)
 	for range tickAccum.C {
+		counter += 1
 		ticker, err := api.Public.Ticker(pairs, ignoreInvalid)
 		if err == nil {
 			now := time.Now().Unix()
 			for k, v := range ticker {
 				m := metrics[k]
 				m.value[m.position] = v.Last
-				m.position = mod(m.position+1, maxPosition)
+				m.position = mod(m.position+1, period)
 				m.time = now
 				sum := 0.0
 				metrics[k] = m
 				for _, v := range m.value {
 					sum += v
 				}
-				a := sum / maxPosition
-				pairCalc.Avg = a
+				if counter < int64(period) {
+					avg = sum / float64(counter)
+				} else {
+					avg = sum / float64(period)
+				}
+				pairCalc.Avg = avg
 				pairCalc.Updated = now
 				// avgSync.Lock()
 				pairsCalc[k] = pairCalc
 				// avg[k] = a
 				// avgSync.Unlock()
 				// if k == "btc_usd" {
-				// 	fmt.Printf("pair:%s t:%d v:%f avg:%v \n", k, now, v.Last, sum/maxPosition)
+				// 	fmt.Printf("pair:%s t:%d v:%f avg:%v \n", k, now, v.Last, sum/period)
 				// }
 			}
 			avgSync.Lock()
